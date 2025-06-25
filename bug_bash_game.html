@@ -7,8 +7,8 @@
     body {
       margin: 0;
       font-family: monospace;
-      background: #111;
-      color: #9f9;
+      background: #f8f8f3; /* off white */
+      color: #7b4a19; /* brown */
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -17,7 +17,7 @@
     }
 
     h1 {
-      color: #9f9;
+      color: #7b4a19; /* brown */
       font-size: 3rem;
       margin: 20px;
     }
@@ -26,6 +26,7 @@
       font-size: 1.2rem;
       position: absolute;
       top: 10px;
+      color: #7b4a19; /* brown */
     }
 
     #score {
@@ -47,35 +48,35 @@
     .hole {
       width: 80px;
       height: 80px;
-      border: 2px solid #555;
+      border: 2px solid #bcae99;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 2rem;
       cursor: pointer;
-      background-color: #222;
+      background-color: #f3ede3;
     }
 
     .bug {
-      color: #9f9;
+      color: #7b4a19; /* brown */
     }
 
     .squashed {
-      color: #f44;
+      color: #a0522d; /* darker brown */
     }
 
     #gameOver {
       display: none;
       text-align: center;
-      color: #fff;
+      color: #000; /* black */
     }
 
     button {
       margin-top: 20px;
       padding: 10px 20px;
       font-size: 1rem;
-      background: #9f9;
+      background: #bcae99; /* light brown */
       border: none;
       border-radius: 5px;
       cursor: pointer;
@@ -85,7 +86,7 @@
 </head>
 <body>
   <div id="score">Score: 0</div>
-  <div id="timer">Time: 10</div>
+  <div id="timer">Time: 60</div>
   <h1>BUG BASH!</h1>
   <div id="grid"></div>
 
@@ -94,7 +95,7 @@
     <p id="finalScore"></p>
     <button onclick="startGame()">Play Again</button>
   </div>
-
+  <div id="minusFifty" style="display:none;position:fixed;top:40%;left:0;width:100%;text-align:center;font-size:5rem;color:#f8f8f3;font-weight:bold;z-index:1000;pointer-events:none;">-50</div>
   <script>
     const grid = document.getElementById('grid');
     const scoreDisplay = document.getElementById('score');
@@ -103,12 +104,19 @@
     const finalScoreDisplay = document.getElementById('finalScore');
 
     let score = 0;
-    let timeLeft = 10;
+    let timeLeft = 60;
     let gameInterval;
     let bugTimers = [];
 
-    const bugEmoji = "🐛";
-    const splat = "💥";
+    const bugEmoji = '<img src="alive.png" alt="bug" style="width:48px;height:48px;">';
+    const splat = '<img src="smashed.png" alt="splat" style="width:48px;height:48px;">';
+    const bombEmoji = '<img src="bomb.png" alt="bomb" style="width:48px;height:48px;">';
+    const butterflyEmoji = '<img src="butterfly.png" alt="butterfly" style="width:48px;height:48px;">'; // Add butterfly image
+
+    let multiplier = 1;
+    let multiplierTimeout = null;
+    let timerPaused = false;
+    let timerPauseTimeout = null;
 
     function createGrid() {
       grid.innerHTML = '';
@@ -125,38 +133,86 @@
       const index = Math.floor(Math.random() * holes.length);
       const hole = holes[index];
 
-      if (hole.classList.contains('bug')) return;
+      if (hole.classList.contains('bug') || hole.classList.contains('bomb') || hole.classList.contains('butterfly')) return;
 
-      hole.textContent = bugEmoji;
-      hole.classList.add('bug');
+      // 5% butterfly, 20% bomb, 75% bug
+      const rand = Math.random();
+      if (rand < 0.05) {
+        hole.innerHTML = butterflyEmoji;
+        hole.classList.add('butterfly');
+      } else if (rand < 0.25) {
+        hole.innerHTML = bombEmoji;
+        hole.classList.add('bomb');
+      } else {
+        hole.innerHTML = bugEmoji;
+        hole.classList.add('bug');
+      }
 
       const hideTime = 1500 + Math.random() * 1500;
       const bugTimeout = setTimeout(() => {
-        if (hole.classList.contains('bug')) {
-          hole.classList.remove('bug');
-          hole.textContent = '';
-        }
+        hole.classList.remove('bug', 'bomb', 'butterfly');
+        hole.innerHTML = '';
       }, hideTime);
       bugTimers.push(bugTimeout);
     }
 
     function squashBug(e) {
-      const hole = e.target;
+      const hole = e.currentTarget;
       if (hole.classList.contains('bug')) {
         hole.classList.remove('bug');
         hole.classList.add('squashed');
-        hole.textContent = splat;
-        score += 10;
+        hole.innerHTML = splat;
+        score += 10 * multiplier;
         scoreDisplay.textContent = `Score: ${score}`;
 
         setTimeout(() => {
           hole.classList.remove('squashed');
-          hole.textContent = '';
+          hole.innerHTML = '';
         }, 400);
+      } else if (hole.classList.contains('bomb')) {
+        hole.classList.remove('bomb');
+        hole.innerHTML = '';
+        // Bomb effect: flash red and white background for 3 seconds and show -50
+        const minusFifty = document.getElementById('minusFifty');
+        let flashes = 0;
+        minusFifty.style.display = 'block';
+        const flashInterval = setInterval(() => {
+          document.body.style.backgroundColor = (flashes % 2 === 0) ? 'red' : '#f8f8f3';
+          flashes++;
+          if (flashes >= 6) { // 6 flashes (3 seconds)
+            clearInterval(flashInterval);
+            document.body.style.backgroundColor = '#f8f8f3';
+            minusFifty.style.display = 'none';
+          }
+        }, 100);
+        score = Math.max(0, score - 50);
+        scoreDisplay.textContent = `Score: ${score}`;
+      } else if (hole.classList.contains('butterfly')) {
+        hole.classList.remove('butterfly');
+        hole.innerHTML = '';
+        // Butterfly effect: pause timer for 3 seconds and 2x score for 5 seconds
+        if (timerPauseTimeout) clearTimeout(timerPauseTimeout);
+        if (multiplierTimeout) clearTimeout(multiplierTimeout);
+
+        timerPaused = true;
+        timerDisplay.textContent = `Time: ${timeLeft} (Paused!)`;
+        multiplier = 2;
+        scoreDisplay.textContent = `Score: ${score} (x2!)`;
+
+        timerPauseTimeout = setTimeout(() => {
+          timerPaused = false;
+          timerDisplay.textContent = `Time: ${timeLeft}`;
+        }, 3000);
+
+        multiplierTimeout = setTimeout(() => {
+          multiplier = 1;
+          scoreDisplay.textContent = `Score: ${score}`;
+        }, 5000);
       }
     }
 
     function updateTimer() {
+      if (timerPaused) return;
       timeLeft--;
       timerDisplay.textContent = `Time: ${timeLeft}`;
       if (timeLeft <= 0) {
@@ -166,7 +222,11 @@
 
     function startGame() {
       score = 0;
-      timeLeft = 10;
+      timeLeft = 60;
+      multiplier = 1;
+      timerPaused = false;
+      if (multiplierTimeout) clearTimeout(multiplierTimeout);
+      if (timerPauseTimeout) clearTimeout(timerPauseTimeout);
       scoreDisplay.textContent = `Score: ${score}`;
       timerDisplay.textContent = `Time: ${timeLeft}`;
       gameOverScreen.style.display = 'none';
@@ -186,7 +246,7 @@
       bugTimers.forEach(t => clearTimeout(t));
       grid.querySelectorAll('.hole').forEach(hole => {
         hole.removeEventListener('click', squashBug);
-        hole.textContent = '';
+        hole.innerHTML = '';
         hole.classList.remove('bug', 'squashed');
       });
       grid.style.display = 'none';
