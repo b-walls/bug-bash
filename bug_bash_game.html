@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bug Bash!</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: monospace;
+      background: #111;
+      color: #9f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: start;
+      height: 100vh;
+    }
+
+    h1 {
+      color: #9f9;
+      font-size: 3rem;
+      margin: 20px;
+    }
+
+    #score, #timer {
+      font-size: 1.2rem;
+      position: absolute;
+      top: 10px;
+    }
+
+    #score {
+      left: 10px;
+    }
+
+    #timer {
+      right: 10px;
+    }
+
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(4, 80px);
+      grid-template-rows: repeat(3, 80px);
+      gap: 15px;
+      margin-top: 40px;
+    }
+
+    .hole {
+      width: 80px;
+      height: 80px;
+      border: 2px solid #555;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      cursor: pointer;
+      background-color: #222;
+    }
+
+    .bug {
+      color: #9f9;
+    }
+
+    .squashed {
+      color: #f44;
+    }
+
+    #gameOver {
+      display: none;
+      text-align: center;
+      color: #fff;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 1rem;
+      background: #9f9;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      color: #111;
+    }
+  </style>
+</head>
+<body>
+  <div id="score">Score: 0</div>
+  <div id="timer">Time: 10</div>
+  <h1>BUG BASH!</h1>
+  <div id="grid"></div>
+
+  <div id="gameOver">
+    <h2>Game Over!</h2>
+    <p id="finalScore"></p>
+    <button onclick="startGame()">Play Again</button>
+  </div>
+
+  <script>
+    const grid = document.getElementById('grid');
+    const scoreDisplay = document.getElementById('score');
+    const timerDisplay = document.getElementById('timer');
+    const gameOverScreen = document.getElementById('gameOver');
+    const finalScoreDisplay = document.getElementById('finalScore');
+
+    let score = 0;
+    let timeLeft = 10;
+    let gameInterval;
+    let bugTimers = [];
+
+    const bugEmoji = "🐛";
+    const splat = "💥";
+
+    function createGrid() {
+      grid.innerHTML = '';
+      for (let i = 0; i < 12; i++) {
+        const hole = document.createElement('div');
+        hole.classList.add('hole');
+        hole.dataset.index = i;
+        grid.appendChild(hole);
+      }
+    }
+
+    function randomBug() {
+      const holes = document.querySelectorAll('.hole');
+      const index = Math.floor(Math.random() * holes.length);
+      const hole = holes[index];
+
+      if (hole.classList.contains('bug')) return;
+
+      hole.textContent = bugEmoji;
+      hole.classList.add('bug');
+
+      const hideTime = 1500 + Math.random() * 1500;
+      const bugTimeout = setTimeout(() => {
+        if (hole.classList.contains('bug')) {
+          hole.classList.remove('bug');
+          hole.textContent = '';
+        }
+      }, hideTime);
+      bugTimers.push(bugTimeout);
+    }
+
+    function squashBug(e) {
+      const hole = e.target;
+      if (hole.classList.contains('bug')) {
+        hole.classList.remove('bug');
+        hole.classList.add('squashed');
+        hole.textContent = splat;
+        score += 10;
+        scoreDisplay.textContent = `Score: ${score}`;
+
+        setTimeout(() => {
+          hole.classList.remove('squashed');
+          hole.textContent = '';
+        }, 400);
+      }
+    }
+
+    function updateTimer() {
+      timeLeft--;
+      timerDisplay.textContent = `Time: ${timeLeft}`;
+      if (timeLeft <= 0) {
+        endGame();
+      }
+    }
+
+    function startGame() {
+      score = 0;
+      timeLeft = 10;
+      scoreDisplay.textContent = `Score: ${score}`;
+      timerDisplay.textContent = `Time: ${timeLeft}`;
+      gameOverScreen.style.display = 'none';
+      grid.style.display = 'grid';
+      createGrid();
+
+      grid.querySelectorAll('.hole').forEach(hole => {
+        hole.addEventListener('click', squashBug);
+      });
+
+      gameInterval = setInterval(randomBug, 400);
+      bugTimers.push(setInterval(updateTimer, 1000));
+    }
+
+    function endGame() {
+      clearInterval(gameInterval);
+      bugTimers.forEach(t => clearTimeout(t));
+      grid.querySelectorAll('.hole').forEach(hole => {
+        hole.removeEventListener('click', squashBug);
+        hole.textContent = '';
+        hole.classList.remove('bug', 'squashed');
+      });
+      grid.style.display = 'none';
+      gameOverScreen.style.display = 'block';
+      finalScoreDisplay.textContent = `Your final score was: ${score}`;
+    }
+
+    // Auto-start on load
+    startGame();
+  </script>
+</body>
+</html>
